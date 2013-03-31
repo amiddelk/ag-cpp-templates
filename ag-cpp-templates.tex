@@ -1,0 +1,567 @@
+\documentclass{llncs}
+
+\usepackage{graphicx}
+\usepackage{listings}
+
+\lstset{
+  language=C++,
+  basicstyle=\normalsize\ttfamily
+}
+
+\newcommand*{\Cpp}{C\ensuremath{^{++}}}
+
+\title{Embedded Attribute Grammars as \Cpp{} Templates}
+
+\author{Arie Middelkoop}
+\institute{\email{amiddelk@gmail.com}}
+
+\begin{document}
+
+  \maketitle
+
+  \begin{abstract}
+  Attribute grammars have been implemented as a statically-typed,
+  embedded domain specific language
+  in several programming languages that feature meta programming facilities.
+  \Cpp{} templates are considered to be an expressive meta programming language.
+  In this article, we give an outline of such an embedding using \Cpp{} templates.
+  \end{abstract}
+ 
+\section{Introduction}
+\label{sec:introduction}
+
+  This article considers what would be Doaitse's next `best' programming language 
+  to embed attribute grammars in, when Haskell is taken aside.
+  Among the list of possibilities, we would normally not consider \Cpp, but
+  there is actually some justification for it:
+  \begin{itemize}
+  \item The embedding would largely be about meta programming, which in case of
+    \Cpp{} involve templates, assuming that we wish a statically-typed embedding.
+    The template language of \Cpp{} is purely functional. This is a must-have for
+    somebody that is such a prominent preacher of functional programming.
+  \item The templates were not intended as a programming language, turning
+    working on the edges of what is possible in practice into a small
+    adventure.
+  \item
+    Their design and implementation in compilers is so poor that somebody
+    should complain to the standardisation committees and to compiler
+    implementors to accept improvements.
+  \item
+    When writing a template program, one quickly runs into
+    obscure compiler issues and platform-specific quirks, which is a
+    reason to stay into contact with former colleagues and students.
+  \end{itemize}
+  There does even exist some more serious motivation for embedding
+  attribute grammars in \Cpp. There are many compilers
+  and transformation tools implemented in \Cpp, including the
+  large gcc compiler. A lightweight \Cpp{}
+  embedding of attribute grammars can for example be useful in the
+  description of transformation steps of the latter.
+
+  It is known for a long time that templates are
+  an expressive meta language, so it is not surprising that an
+  embedding is possible. To do so, we need to:
+  \begin{itemize}
+  \item Provide an API for the type-level description of an
+    attribute grammar (as a type). In particular, we want to
+    compose such a type out of individual fragments, such as
+    nonterminal, production and attribute declarations (represented
+    as types).
+  \item Derive data types (e.g. classes in \Cpp) for representing
+    the tree as a function of the composed grammar.
+  \item Derive the code for decorating the tree as a function of
+    the composed grammar. Although we can only derive types using
+    templates, this is not a limitation because those types can
+    be classes containing functions. Those functions may call
+    functions of other derived classes, thereby allowing the
+    composition of blocks of code into arbitrary complex
+    algorithms.
+  \end{itemize}
+  As a starting point for doaitse, we sketch the first step in this article.
+
+\section{Preliminaries: Template Programming}
+\label{sect:templates}
+
+  The template language is purely functional, evaluated using a
+  call-by-need strategy with maximal sharing, and untyped.
+  The latter makes template programming a rather painful process,
+  and proposals that adress this issue (e.g., Concepts) have not been adopted yet.
+  Otherwise, template programming is not unlike programming in any other
+  functional language, albeit with a clumsy syntax.
+  We present template programming in a nutshell in this section.
+
+  A precondition for programming with templates is a basic understanding of \Cpp{} type
+  declarations. In particular, the use of typedefs plays a
+  major role, as they encodes the concept of let-bindings in templates.
+  Also, it is often required to prefix type expressions that use
+  the scope resolution operator \lstinline$::$ with the keyword
+  \lstinline$typename$ to explicitly state that the identifier that
+  is looked up is a type and not a value, which is usually the case
+  when writing type-level computations.
+  It is also worth noting that, unlike in C, structs are just
+  classes with a default public visibility. In this article, object
+  orientation and information hiding do not play an important role
+  in the implementation.
+
+  Programming with templates means that we can compute a type as
+  a function of other types. With templates we can express those
+  functions. The result of such a function is restricted to class
+  types (i.e. a struct).
+
+  The simplest form is a zero-place function, a constant, which
+  is thus actually a conventional type that does not involve
+  templates yet:
+  \begin{lstlisting}
+  struct unit;   // optional forward declaration
+  struct unit {  // actual declaration
+    // class declaration: body of the template
+  };
+  \end{lstlisting}
+  The class declaration can contain fields and methods, but also
+  nested templates, and typedefs. In practice, this means that
+  classes encode the concept of (dependend) records, and the
+  scope resolution operator \lstinline$::$ as the mechanism
+  to dereference the fields.
+
+  As a more complex example, the identity function is expressed as:
+  \begin{lstlisting}
+  template<typename x>  // parameter list
+  struct identity;      // forward declaration
+
+  template<typename x>  // parameter list
+  struct identity {     // actual declaration
+    typedef x type;     // field (type)
+  };
+  \end{lstlisting}
+  The template introduces a parameter \lstinline$x$, which can
+  be used in type expressions. The typedef binds the type
+  expression \lstinline$x$ to the name \lstinline$type$.
+  The template can be called in type expressions:
+  \begin{lstlisting}
+  identity<int>         // the struct itself
+  identity<int>::type   // the nested type
+  \end{lstlisting}
+  Thus, we can express other results than structs (e.g. primitive
+  types such as \lstinline$int$) by exposing them as fields.
+  We follow the usual convention to store the actual result of the
+  function as the field name \lstinline$type$.
+
+  A typical function looks like:
+  \begin{lstlisting}
+  template<typename arg1, typename arg2>
+  struct my_fun {
+    template< /* ... */ >
+    struct nested_fun { /* ... */ };
+
+    typedef /* ... type expr ... */ local1;
+    typedef /* ... type expr ... */ local2;
+
+    typedef /* ... type expr ... */ type;
+  }
+  \end{lstlisting}
+  As usual in \Cpp, the scope goes from top to bottom,
+  and forward declarations can be used to introduce recursion.
+  A typical function application then looks like:
+  \begin{lstlisting}
+  my_fun< /* type expr */, /* type expr */ >::type
+  \end{lstlisting}
+  When used inside a typedef, we need to make explicit that the
+  name \lstinline$type$ represents the name of a type by prefixing
+  it with the keyword \lstinline$typename$:
+  \begin{lstlisting}
+  typedef typename my_fun<int, char>::type result;
+  \end{lstlisting}
+  The syntax takes a while to getting used to, but in the end it
+  is functional programming in disguise.
+  Note that currying is not supported this way, so that all
+  function applications need to be fully saturated. The Boost MPL
+  library provides a slightly more involved encoding of functions
+  so that currying can be expressed, but we do not need this
+  feature in this article.
+
+  Pattern matching on function parameters can be encoded using
+  template specialisation. Noting that the previous types
+  \lstinline$unit$ represents a type level zero, and \lstinline$identity$
+  a type level successor, we can implement
+  addition of type level natural numbers:
+  \begin{lstlisting}
+  template<typename x, typename y>
+  struct add;  // forward declaration
+
+  template<typename x>
+  struct add<x, unit> {   // y=unit
+    typedef x type;
+  };
+
+  template<typename x, typename z>
+  struct add<x, identity<z> > {  // y=identity<z>
+    typedef typename add<identity<x>, z>::type type;
+  };
+  \end{lstlisting}
+  The template body with the most specific instantiation is
+  chosen, when unambiguous. Failure to provide such a case
+  usually results in a cryptic error message.
+
+  An alternative implementation would wrap the
+  identity around the result instead of around the
+  first argument. The definition as given above has
+  one advantage as it can be written more concisely
+  using inheritance:
+  \begin{lstlisting}
+  template<typename x, typename y>
+  struct add<x, identity<y> > : add<identity<x>, y> {
+  };
+  \end{lstlisting}
+
+  The Boost MPL library provides some common abstractions
+  to make programming with templates more convenient.  
+  It provides an if-then-else function, and
+  type level maps with the following API:
+  \begin{lstlisting}
+  map<>                              // empty map
+  insert<mp,pair<key,value>>::type   // insert on map
+  has_key<mp,key>::type              // member testing
+  fold<mp,state,binfun>::type        // fold function
+  \end{lstlisting}
+  To implement the DSL, we write functions that fold
+  over the structure of the grammar representation,
+  which consists largely of type level maps.
+  It would be possible to express those folds with
+  an attribute grammar, but it should be clear by
+  now that we do not intent to implement meta-meta
+  attribute grammars in this article.
+
+\section{Embedding}
+\label{sect:api}
+
+  The API of the embedding consists of functions to
+  construct an attribute grammar description,
+  convention regarding how the rules of the grammar
+  are encoded, functions to access the attributes
+  from rules, and functions to construct the
+  tree and access its toplevel synthesized attributes.
+  We discuss each of these parts in this section.
+
+  \paragraph{Grammar construction.}
+  There are several ways to construct descriptions of
+  attribute grammars,
+  such as oriented per production or per aspect. We do not
+  adopt a particular approach, and rather provide a
+  low-level API onto which a higher-level API can be build.
+
+  Each of the functions in Figure~\ref{fig:api}
+  incorporate an additional asset (nonterminal,
+  production, attribute, etc.) to a grammar description,
+  and yield the extended
+  grammar description. The starting point is an empty
+  grammar, available as a constant (i.e. a type).
+  The functions are all commutative, i.e. may appear
+  in any order. 
+
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  template<typename name, typename grammar>
+  struct decl_nont;
+
+  template <typename nont_name, typename attr_name,
+    typename attr_type, typename grammar>
+  struct decl_inh;
+
+  template <typename nont_name, typename attr_name,
+    typename attr_type, typename grammar>
+  struct decl_syn;
+
+  template<typename nont_name, typename prod_name,
+    typename term_type, typename grammar>
+  struct decl_prod;
+
+  template<typename nont_name, typename prod_name,
+    typename child_name, typename child_nont_name,
+    typename grammar>
+  struct decl_child;
+
+  template<typename nont_name, typename prod_name,
+    typename attr_name,
+    typename rule_def, typename grammar>
+  struct define_syn;
+
+  template<typename nont_name, typename prod_name,
+    typename child_name, typename attr_name,
+    typename rule_def, typename grammar>
+  struct define_inh;
+  \end{lstlisting}
+  \caption{API for composing attribute grammar descriptions.}
+  \label{fig:api}
+  \end{figure}
+
+  The difference between \lstinline$decl_syn$ and \lstinline$define_syn$
+  is that the former specifies the synthesized attributes of a nonterminal,
+  whereas the latter gives definitions of them per production of the
+  nonterminal. The same distinction holds for \lstinline$decl_inh$ and
+  \lstinline$define_inh$, except that these are focussed around
+  children (occurrences of nonterminals in the right-hand side of a
+  production).
+
+  The functions of the API take nonterminal, production,
+  child and attribute names as parameter. Names in this
+  setting are constants, i.e.
+  types introduced for the purpose of being a unique
+  identifier. Figure~\ref{fig:idents} shows the names that
+  we use in the example later in this section.
+
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  struct n_root {};
+  struct p_root {};
+  struct c_root {};
+
+  struct n_tree {};
+  struct p_leaf {};
+  struct p_bin {};
+  struct c_left {};
+  struct c_right {};
+
+  struct i_depth {};
+  struct s_count {};
+  \end{lstlisting}
+  \caption{Names used in the example.}
+  \label{fig:idents}
+  \end{figure}
+
+  \paragraph{Rule encoding.}
+  Another topic is how to represent the body of rules, which
+  needs to be given as type \lstinline$rule_def$ to the
+  functions \lstinline$define_inh$ and \lstinline$define_syn$.
+  We encode the body as a static function wrapped in a type.
+  The body needs access to the tree, which we pass as parameter.
+
+  Moreover, the type of the tree is derived from the final
+  grammar, not from the intermediate grammar that is available
+  in the call to \lstinline$define_inh$ or \lstinline$define_syn$.
+  We solve this by additional level of indirection, where the
+  wrapped type is parameterized with the final grammar, so that
+  a rule definition looks like the following:
+  \begin{lstlisting}
+  struct my_rule {
+    template<typename grammar_final>
+    struct rule {
+      typedef typename node_type<grammar_final,
+        nont_name, prod_name>::type node_type;
+
+      static attr_type evaluate(node_type *node) {
+        return /* ... */;
+      };
+    };
+  };
+
+  define_syn(n_name, p_name, s_name, my_rule, some_g);
+  \end{lstlisting}
+  The names \lstinline$rule$ and \lstinline$evaluate$ are
+  cannot be chosen freely, so that when deriving the
+  evaluation code from the final grammar
+  we can use a statement as follows to call the
+  body of the rule:
+  \begin{lstlisting}
+  val = rule_def::rule<final_grammar>::evaluate(node);
+  \end{lstlisting}
+
+  The body of the evaluate function can access the
+  values of attributes via the \lstinline$node$
+  parameter, using the following API functions
+  in the body of rules:
+  \begin{lstlisting}
+  inh_value<node_type, attr_name>::type::get(node)
+  syn_value<node_type, child_name,
+    attr_name>::type::get(node)
+  \end{lstlisting}
+  Note that \lstinline$get$ is a (static) function,
+  not a type.
+
+  \paragraph{Example.}
+  Before continuing, we provide an example to demonstrate
+  the embedding using the functions as given so far.
+  The example is about an attribute grammar for binary
+  trees where a synthesized attribute \lstinline$s_count$
+  represents the total number of leaf nodes at a depth greater
+  than 2 given initial depth as inherited attribute \lstinline$i_depth$.
+  The example is separated in two parts: Figure~\ref{fig:example:grammar}
+  contains the description of the grammar, and
+  Figure~\ref{fig:example:rules} gives some of
+  the rules.
+
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  typedef empty_grammar g0;
+  typedef decl_nont<n_root, g0>::type g1;
+  typedef decl_nont<n_tree, g1>::type g2;
+  typedef decl_syn<n_tree, s_count, int,
+    g2>::type g3;
+  typedef decl_inh<n_tree, i_depth, int,
+    g3>::type g4;
+  typedef decl_prod<n_root, p_root,
+    unit, g4>::type g5;
+  typedef decl_prod<n_tree, p_leaf,
+    unit, g5>::type g6;
+  typedef decl_prod<n_tree, p_bin,
+    unit, g6>::type g7;
+  typedef decl_child<n_root, p_root, c_root,
+    n_tree, g7>::type g8;
+  typedef decl_child<n_tree, p_bin, c_left,
+    n_tree, g8>::type g9;
+  typedef decl_child<n_tree, p_bin, c_right,
+    n_tree, g9>::type g10;
+  typedef define_syn<n_tree, p_leaf, s_count,
+    r_zero, g10>::type g11;
+  typedef define_syn<n_tree, p_bin, s_count,
+    r_sum, g11>::type g12;
+  typedef define_inh<n_root, p_root, c_root,
+    i_depth, r_init, g12>::type g13;
+  typedef define_inh<n_tree, p_bin, c_left,
+    i_depth, r_down, g13>::type g14;
+  typedef define_inh<n_tree, p_bin, c_right,
+    i_depth, r_down, g14>::type g15;
+  typedef g15 g_final;
+  \end{lstlisting}
+  \caption{Example: grammar description.}
+  \label{fig:example:grammar}
+  \end{figure}
+
+  We imposed the following convention to simplify the API: starting
+  nonterminals may only have synthesized attributes, and each production
+  has exactly one terminal, whose values thus have to be available in
+  each node of the tree. Using this convention, inherited attributes
+  of the root can be encoded as terminals of the root node, zero
+  terminals using the type \lstinline$unit$, and multiple terminals
+  using a structured type. In the example, the starting nonterminal
+  \lstinline$n_root$ does indeed not take any inherited attributes,
+  and all productions are of type \lstinline$unit$.
+
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  struct r_zero {
+    template<typename g>
+    struct rule {
+      typedef typename node_type<g, n_tree, p_leaf>
+        ::type t_node;
+
+      int evaluate(t_node *node) {
+        return 0;
+      }
+    };
+  };
+
+  struct r_sum {
+    template<typename g>
+    struct rule {
+      typedef typename node_type<g, n_tree, p_bin>
+        ::type t_node;
+
+      int evaluate(node_type<t_node *node) {
+        int d = inh_value<t_node, i_depth>
+                  ::type::get(node);
+        int l = syn_value<t_node, c_left, s_count>
+                  ::type::get(node);
+        int r = syn_value<t_node, c_right, s_count>
+                  ::type::get(node);
+
+        if (d > 2)
+          return l + r;
+        else
+          return 0;
+      }
+    };
+  };
+  \end{lstlisting}
+  \caption{Example: two rule bodies.}
+  \label{fig:example:rules}
+  \end{figure}
+
+  \paragraph{Tree construction.}
+  Figure~\ref{fig:example:construct} demonstrates
+  some templates for constructing the tree. We
+  describe these templates in more detail below.
+
+  The following two templates are used to obtain
+  types related to a production and nonterminal
+  respectively:
+  \begin{lstlisting}
+  node_type<grammar, nont_name, prod_name>::type
+  tree_type<grammar, nont_name>::type
+  \end{lstlisting}
+  Each \lstinline$node_type$ is a subclass of
+  \lstinline$tree_type$ when given the same
+  nonterminal name. To construct a node of the
+  tree, we use the \Cpp{} constructor of the
+  \lstinline$node_type$, that additionally
+  takes the value of the terminal as parameter. 
+  We use the \lstinline$tree_type$ when the
+  distinction in particular node types is
+  irrelevant, which is e.g. the case when
+  we attach a subtree to a node. The
+  template \lstinline$attach$ we use for
+  this purpose:
+  \begin{lstlisting}
+  attach<grammar, nont_name, prod_name, child_name
+    ::type::set(parent, child);
+  \end{lstlisting}
+  Here, \lstinline$parent$ must be a pointer to
+  a node of type:
+  \begin{lstlisting}
+  node_type<grammar, nont_name, prod_name>::type
+  \end{lstlisting}
+  and \lstinline$child$ must be a pointer to
+  any node that is a subclass of:
+  \begin{lstlisting}
+  tree_type<grammar, name>::type
+  \end{lstlisting}
+  where \lstinline$name$ is the nonterminal name
+  given to the declarationof \lstinline$child_name$.
+  In pratice, these pointers should be shared pointers
+  of \Cpp, to facilitate automatic garbage collection.
+  
+  To obtain the synthesized attributes of the root,
+  we use the template: 
+  \begin{lstlisting}
+  result<grammar, nont_name, syn_name>
+    ::type::get(root)
+  \end{lstlisting}
+  It semantics is that it decorates the tree with
+  those attributes necessary to obtain the
+  synthesized attribute \lstinline$syn_name$.
+  
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  // allocate the nodes
+  node_type<g_final, n_root, p_root>
+    ::type root(unit);
+  node_type<g_final, n_tree, p_leaf>
+    ::type middle(unit);
+  node_type<g_final, n_tree, p_bin>
+    ::type left, right(unit);
+
+  // construct the tree
+  attach<g_final, n_root, p_root, c_root>
+    ::type::set(&root, &middle);
+  attach<g_final, n_tree, p_bin, c_left>
+    ::type::set(&middle, &left);
+  attach<g_final, n_tree, p_bin, c_right>
+    ::type::set(&middle, &right);
+
+  // obtain the resulting attribute
+  int d = result<g_final, n_root, s_depth>
+            ::type::get(&root);
+  \end{lstlisting}
+  \caption{Example: tree construction.}
+  \label{fig:example:construct}
+  \end{figure}
+
+\section{Implementation}
+\label{sec:implementation}
+
+  The remainder of this article is deliberately left empty.
+
+\bibliographystyle{splncs}
+\bibliography{ag-cpp-templates}
+
+\end{document}
+
