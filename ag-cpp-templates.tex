@@ -571,7 +571,38 @@
 \section{Implementation}
 \label{sec:implementation}
 
-  The remainder of this article is deliberately left empty.
+  We leave the implementation deliberately as an exercise
+  to the reader, and finish this article with some hints.
+
+  When using a generator-based approach, it is possible to
+  generate code that is type safe, i.e. does not use any
+  unsafe features nor type casts. This code exploits
+  inheritance (virtual methods) and nested classes to provide interfaces
+  to attributes. For example, a node obtains from its
+  parent an object that provides getter-functions of
+  the node's inherited attributes that are to be computed
+  by the parent. By using such interfaces, a node does
+  not need to know the concrete type of its parent.
+  Similarly, one can envision such a construction between
+  a node and its children.
+  
+  When using an embedding via templates, however,
+  inheritance is not a viable option. To derive an interface-type containing
+  a list of functions, we would use some nesting of
+  types, either via fields or via inheritance. In the
+  first case, inheritance does not work for fields,
+  and in the latter case inheritance is already in use.
+  Instead, one can label nodes with a runtime tag that
+  specifies to which production the node belongs, and
+  at which child position the node occurs at its parent.
+  The appropriate code can then be looked up in various
+  tables using these identifiers, similar to how
+  virtual methods are implemented using vtables.
+  By inspecting the tag we then discover the concrete type
+  of the node. Note that this requires a type cast to
+  convince the type checker. Fortunately, this cast is
+  in the library code, and we can prove externally that
+  it is always safe.
 
 \bibliographystyle{splncs}
 \bibliography{ag-cpp-templates}
