@@ -2,11 +2,14 @@
 
 \usepackage{graphicx}
 \usepackage{listings}
-
+\usepackage{bold-extra}
 
 \lstset{
   language=C++,
-  basicstyle=\normalsize\ttfamily
+  basicstyle=\ttfamily,
+  keywordstyle=\ttfamily\bfseries,
+  stringstyle=\ttfamily,
+  commentstyle=\ttfamily,
 }
 
 
@@ -37,7 +40,7 @@
   Among the list of possibilities, we would normally not consider \Cpp, but
   there is actually some justification for it:
   \begin{itemize}
-  \item The embedding focusses on meta programming, which in case of
+  \item The embedding focuses on meta programming, which in case of
     \Cpp{} involve templates, at least when we assume that the embedding
     is to be statically typed.
     The template language of \Cpp{} is purely functional. This is a must-have for
@@ -47,8 +50,8 @@
     adventure.
   \item
     Their design and implementation in compilers is so poor that somebody
-    should complain to the standardisation committees and to compiler
-    implementors to accept improvements.
+    should complain to the standardization committees and to compiler
+    implementers to accept improvements.
   \item
     When writing a template program, one quickly runs into
     obscure compiler issues and platform-specific quirks, which is a
@@ -57,7 +60,7 @@
   There exists more serious motivation for embedding
   attribute grammars in \Cpp. There are many compilers
   and transformation tools implemented in \Cpp, including the
-  large gcc compiler. A lightweight \Cpp{}
+  large GCC compiler. A lightweight \Cpp{}
   embedding of attribute grammars can for example be useful in the
   description of transformation steps of the latter.
 
@@ -80,7 +83,7 @@
     composition of blocks of code into arbitrary complex
     algorithms.
   \end{itemize}
-  As a starting point for doaitse, we sketch the first step in this article,
+  As a starting point for Doaitse, we sketch the first step in this article,
   and as dependency give an overview of template programming in the
   next section.
 
@@ -90,7 +93,7 @@
   The template language is purely functional~\cite{DBLP:dblp_journals/entcs/Sinkovics11},
   evaluated using a call-by-need strategy with maximal sharing, and untyped.
   The latter makes template programming a rather painful process,
-  and proposals that adress this issue (e.g., Concepts) have not been adopted yet.
+  and proposals that address this issue (e.g., Concepts) have not been adopted yet.
   Otherwise, template programming is not unlike programming in any other
   functional language, albeit with a clumsy syntax, as we show
   in this section.
@@ -126,7 +129,7 @@
   \end{lstlisting}
   The class declaration can contain fields and methods, but also
   nested templates, and typedefs. In practice, this means that
-  classes encode the concept of (dependend) records, and the
+  classes encode the concept of (dependent) records, and the
   scope resolution operator \lstinline$::$ as the mechanism
   to dereference or lookup the fields.
 
@@ -311,14 +314,13 @@
   is that the former specifies the synthesized attributes of a nonterminal,
   whereas the latter gives their respective definitions per production of the
   nonterminal. The same distinction holds for \lstinline$decl_inh$ and
-  \lstinline$define_inh$, except that these are focussed around
+  \lstinline$define_inh$, except that these are focused around
   children, i.e. occurrences of nonterminals in the right-hand side of a
   production.
 
   \begin{figure}[tb]
   \begin{lstlisting}
-  struct n_root {}; struct p_root {};
-  struct c_root {};
+  struct n_root {}; struct p_root {}; struct c_root {};
 
   struct n_tree {};
   struct p_leaf {}; struct p_bin {};
@@ -348,7 +350,7 @@
   grammar, not from the intermediate grammar that is available
   in the call to \lstinline$define_inh$ or \lstinline$define_syn$.
   We solve this by additional level of indirection, where the
-  wrapped type is parameterized with the final grammar, so that
+  wrapped type is parametrized with the final grammar, so that
   a rule definition has the following structure:
   \begin{lstlisting}
   struct my_rule {
@@ -530,8 +532,8 @@
   tree_type<grammar, name>::type
   \end{lstlisting}
   where \lstinline$name$ is the nonterminal name
-  given to the declarationof \lstinline$child_name$.
-  In pratice, these pointers should be shared pointers
+  given to the declaration of \lstinline$child_name$.
+  In practice, these pointers should be shared pointers
   of \Cpp, to facilitate automatic garbage collection.
   
   To obtain the synthesized attributes of the root,
@@ -573,9 +575,41 @@
 \section{Implementation}
 \label{sec:implementation}
 
-  We leave the implementation deliberately as an exercise
-  to the reader, and finish this article with some hints.
+  We leave the implementation as an exercise
+  to the reader. Instead we give some hints.
 
+  \paragraph{Type-level representation.}
+  The attribute grammars can be represented as a
+  map of \lstinline$nont_decl$s, containing two maps
+  of respective inherited and synthesized \lstinline$attr_decl$s,
+  and a map of \lstinline$prod_decl$s, which contain
+  a map of \lstinline$syn_def$s, and a map of \lstinline$child_decl$s,
+  each containing a map of \lstinline$inh_def$s. These types
+  serve as records, which we can express straightforwardly as templates,
+  e.g.:
+  \begin{lstlisting}
+  template<typename n, typename iattrs,
+    typename sattrs, typename ps>
+  struct nont_decl {
+    typedef n nont_name;
+    typedef iattrs inhs;
+    typedef sattrs syns;
+    typedef ps prods;
+  };
+
+  template<typename n, typename t, typename sdefs,
+    typename cs>
+  struct prod_decl {
+    typedef n prod_name;
+    typedef t term_type;
+    typedef sdefs syn_defs;
+    typedef cs children;
+  };
+  \end{lstlisting}
+  Some of the parameters will be maps (e.g. \lstinline$iattrs$), which
+  is not specified in the code because the template language is untyped.
+
+  \paragraph{Inheritance.}
   When using a generator-based approach, it is possible to
   generate code that is type safe, i.e. does not use any
   unsafe features nor type casts. This code exploits
@@ -606,8 +640,49 @@
   in the library code, and we can prove externally that
   it is always safe.
 
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  template<typename grammar>
+  struct prod_numbers {
+    template<typename mp, typename n_pair>
+    struct handle_nont {
+      typedef n_pair::snd n_decl;
+
+      template<typename mp, typename p_pair>
+      struct handle_prod {
+        typedef p_pair::snd p_decl;
+        typedef pair<n_decl::nont_name,
+          p_decl::prod_name> key;
+        typedef typename size<mp>::type tag;
+        typedef typename insert<mp, key, tag>
+          ::type result;
+      };
+
+      typedef typename fold<n_decl::prods,
+        mp, quote2<handle_prod> >::type type;
+    };
+
+    typedef typename fold<grammar, map<>,
+      quote2<handle_nont> >::type type;
+  }; 
+  \end{lstlisting}
+  \caption{Template that derives a map with production tags.}
+  \label{fig:numbering}
+  \end{figure}
+
+  \paragraph{Numbering productions.}
+  To number the productions as mentioned above, we fold over
+  the nonterminal and production declarations and compute
+  a map that assigns to pairs of nonterminal and production
+  name an increasing number. Figure~\ref{fig:numbering} demonstrates.
+
+  \section{Conclusion}
+  We showed in this article how attribute grammars can be described using \Cpp{}
+  templates. The implementation is up to the reader. As encouragement, we can
+  furthermore say that the reader will easily run into obstacles imposed by
+  the compiler, including slow compilation times and insufficient memory...
+
 \bibliographystyle{splncs}
 \bibliography{ag-cpp-templates}
 
 \end{document}
-
