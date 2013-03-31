@@ -31,7 +31,7 @@
 \label{sec:introduction}
 
   This article considers what would be Doaitse's next `best' programming language 
-  to embed attribute grammars in, when Haskell is taken aside.
+  to embed attribute grammars in, when Haskell~\cite{DBLP:conf/sblp/VieraS12} is taken aside.
   Among the list of possibilities, we would normally not consider \Cpp, but
   there is actually some justification for it:
   \begin{itemize}
@@ -52,7 +52,7 @@
     obscure compiler issues and platform-specific quirks, which is a
     reason to stay into contact with former colleagues and students.
   \end{itemize}
-  There does even exist some more serious motivation for embedding
+  There exists more serious motivation for embedding
   attribute grammars in \Cpp. There are many compilers
   and transformation tools implemented in \Cpp, including the
   large gcc compiler. A lightweight \Cpp{}
@@ -85,8 +85,8 @@
 \section{Preliminaries: Template Programming}
 \label{sect:templates}
 
-  The template language is purely functional, evaluated using a
-  call-by-need strategy with maximal sharing, and untyped.
+  The template language is purely functional~\cite{DBLP:dblp_journals/entcs/Sinkovics11},
+  evaluated using a call-by-need strategy with maximal sharing, and untyped.
   The latter makes template programming a rather painful process,
   and proposals that adress this issue (e.g., Concepts) have not been adopted yet.
   Otherwise, template programming is not unlike programming in any other
@@ -183,7 +183,7 @@
   but in the end it is just functional programming in disguise.
   Note that currying is not supported this way, meaning that all
   function applications need to be fully saturated. The Boost MPL
-  library provides a slightly more involved encoding of functions
+  library~\cite{boost} provides a slightly more involved encoding of functions
   so that currying can be expressed, but we do not need this
   feature in this article.
 
@@ -223,7 +223,8 @@
   This particular construction often shows up in other
   template programs.
 
-  The Boost MPL library provides some common abstractions
+  The Boost MPL library~\cite{boost} provides some
+  common abstractions
   to make programming with templates more convenient.  
   It provides an if-then-else function, and
   type level maps with the following API:
