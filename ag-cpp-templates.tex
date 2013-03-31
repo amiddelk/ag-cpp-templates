@@ -35,8 +35,9 @@
   Among the list of possibilities, we would normally not consider \Cpp, but
   there is actually some justification for it:
   \begin{itemize}
-  \item The embedding would largely be about meta programming, which in case of
-    \Cpp{} involve templates, assuming that we wish a statically-typed embedding.
+  \item The embedding focusses on meta programming, which in case of
+    \Cpp{} involve templates, at least when we assume that the embedding
+    is to be statically typed.
     The template language of \Cpp{} is purely functional. This is a must-have for
     somebody that is such a prominent preacher of functional programming.
   \item The templates were not intended as a programming language, turning
@@ -77,7 +78,9 @@
     composition of blocks of code into arbitrary complex
     algorithms.
   \end{itemize}
-  As a starting point for doaitse, we sketch the first step in this article.
+  As a starting point for doaitse, we sketch the first step in this article,
+  and as dependency give an overview of template programming in the
+  next section.
 
 \section{Preliminaries: Template Programming}
 \label{sect:templates}
@@ -87,26 +90,28 @@
   The latter makes template programming a rather painful process,
   and proposals that adress this issue (e.g., Concepts) have not been adopted yet.
   Otherwise, template programming is not unlike programming in any other
-  functional language, albeit with a clumsy syntax.
-  We present template programming in a nutshell in this section.
+  functional language, albeit with a clumsy syntax, as we show
+  in this section.
 
   A precondition for programming with templates is a basic understanding of \Cpp{} type
-  declarations. In particular, the use of typedefs plays a
+  declarations.
+  In particular, the use of typedefs plays a
   major role, as they encodes the concept of let-bindings in templates.
-  Also, it is often required to prefix type expressions that use
+  A confusing point is the frequent need to prefix type expressions that use
   the scope resolution operator \lstinline$::$ with the keyword
   \lstinline$typename$ to explicitly state that the identifier that
-  is looked up is a type and not a value, which is usually the case
-  when writing type-level computations.
+  is looked up is a type and not a value or function. As expected, the
+  former is usually the case when writing type level computations.
   It is also worth noting that, unlike in C, structs are just
   classes with a default public visibility. In this article, object
-  orientation and information hiding do not play an important role
-  in the implementation.
+  orientation and information hiding do not play an important role, hence
+  we will mostly use structs for conciser code.
 
-  Programming with templates means that we can compute a type as
-  a function of other types. With templates we can express those
-  functions. The result of such a function is restricted to class
-  types (i.e. a struct).
+  Programming with templates allows one to compute a type as a function
+  of other types, and templates are the means to express those functions.
+  The result of such a `function' is restricted to class
+  types (i.e. a struct). This restriction is not an obstacle as we see
+  later. We show some templates by example.
 
   The simplest form is a zero-place function, a constant, which
   is thus actually a conventional type that does not involve
@@ -121,7 +126,7 @@
   nested templates, and typedefs. In practice, this means that
   classes encode the concept of (dependend) records, and the
   scope resolution operator \lstinline$::$ as the mechanism
-  to dereference the fields.
+  to dereference or lookup the fields.
 
   As a more complex example, the identity function is expressed as:
   \begin{lstlisting}
@@ -146,7 +151,7 @@
   We follow the usual convention to store the actual result of the
   function as the field name \lstinline$type$.
 
-  A typical function looks like:
+  A typical template has the following form:
   \begin{lstlisting}
   template<typename arg1, typename arg2>
   struct my_fun {
@@ -161,7 +166,7 @@
   \end{lstlisting}
   As usual in \Cpp, the scope goes from top to bottom,
   and forward declarations can be used to introduce recursion.
-  A typical function application then looks like:
+  A typical function application has the form of:
   \begin{lstlisting}
   my_fun< /* type expr */, /* type expr */ >::type
   \end{lstlisting}
@@ -171,19 +176,22 @@
   \begin{lstlisting}
   typedef typename my_fun<int, char>::type result;
   \end{lstlisting}
-  The syntax takes a while to getting used to, but in the end it
-  is functional programming in disguise.
-  Note that currying is not supported this way, so that all
+  In general, templates take one or more types as arguments; in
+  the example we showed two.
+
+  The syntax of the template language takes a while to getting used to,
+  but in the end it is just functional programming in disguise.
+  Note that currying is not supported this way, meaning that all
   function applications need to be fully saturated. The Boost MPL
   library provides a slightly more involved encoding of functions
   so that currying can be expressed, but we do not need this
   feature in this article.
 
   Pattern matching on function parameters can be encoded using
-  template specialisation. Noting that the previous types
-  \lstinline$unit$ represents a type level zero, and \lstinline$identity$
-  a type level successor, we can implement
-  addition of type level natural numbers:
+  template specialisation. Noting that the previous type
+  \lstinline$unit$ represents a type level zero, and
+  \lstinline$identity$ a type level successor, we can implement
+  addition of type level natural numbers as follows:
   \begin{lstlisting}
   template<typename x, typename y>
   struct add;  // forward declaration
@@ -199,19 +207,21 @@
   };
   \end{lstlisting}
   The template body with the most specific instantiation is
-  chosen, when unambiguous. Failure to provide such a case
+  chosen, when the choice is unambiguous. Failure to provide such a case
   usually results in a cryptic error message.
 
   An alternative implementation would wrap the
   identity around the result instead of around the
-  first argument. The definition as given above has
-  one advantage as it can be written more concisely
+  first argument. The definition as given above is
+  advantageous as it can be written more concisely
   using inheritance:
   \begin{lstlisting}
   template<typename x, typename y>
   struct add<x, identity<y> > : add<identity<x>, y> {
   };
   \end{lstlisting}
+  This particular construction often shows up in other
+  template programs.
 
   The Boost MPL library provides some common abstractions
   to make programming with templates more convenient.  
@@ -228,7 +238,7 @@
   which consists largely of type level maps.
   It would be possible to express those folds with
   an attribute grammar, but it should be clear by
-  now that we do not intent to implement meta-meta
+  now that we do not intent to cover meta-meta
   attribute grammars in this article.
 
 \section{Embedding}
