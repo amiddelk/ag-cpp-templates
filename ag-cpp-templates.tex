@@ -246,10 +246,10 @@
 
   The API of the embedding consists of functions to
   construct an attribute grammar description,
-  convention regarding how the rules of the grammar
-  are encoded, functions to access the attributes
-  from rules, and functions to construct the
-  tree and access its toplevel synthesized attributes.
+  functions to access the attributes from rules of
+  the grammar, conventions for encoding those rules,
+  and functions to construct the tree and to obtain
+  it synthesized attributes.
   We discuss each of these parts in this section.
 
   \paragraph{Grammar construction.}
@@ -268,7 +268,7 @@
   The functions are all commutative, i.e. may appear
   in any order. 
 
-  \begin{figure}[tb]
+  \begin{figure}[ht]
   \begin{lstlisting}
   template<typename name, typename grammar>
   struct decl_nont;
@@ -306,11 +306,26 @@
 
   The difference between \lstinline$decl_syn$ and \lstinline$define_syn$
   is that the former specifies the synthesized attributes of a nonterminal,
-  whereas the latter gives definitions of them per production of the
+  whereas the latter gives their respective definitions per production of the
   nonterminal. The same distinction holds for \lstinline$decl_inh$ and
   \lstinline$define_inh$, except that these are focussed around
-  children (occurrences of nonterminals in the right-hand side of a
-  production).
+  children, i.e. occurrences of nonterminals in the right-hand side of a
+  production.
+
+  \begin{figure}[tb]
+  \begin{lstlisting}
+  struct n_root {}; struct p_root {};
+  struct c_root {};
+
+  struct n_tree {};
+  struct p_leaf {}; struct p_bin {};
+  struct c_left {}; struct c_right {};
+
+  struct i_depth {}; struct s_count {};
+  \end{lstlisting}
+  \caption{Names used in the example.}
+  \label{fig:idents}
+  \end{figure}
 
   The functions of the API take nonterminal, production,
   child and attribute names as parameter. Names in this
@@ -318,25 +333,6 @@
   types introduced for the purpose of being a unique
   identifier. Figure~\ref{fig:idents} shows the names that
   we use in the example later in this section.
-
-  \begin{figure}[tb]
-  \begin{lstlisting}
-  struct n_root {};
-  struct p_root {};
-  struct c_root {};
-
-  struct n_tree {};
-  struct p_leaf {};
-  struct p_bin {};
-  struct c_left {};
-  struct c_right {};
-
-  struct i_depth {};
-  struct s_count {};
-  \end{lstlisting}
-  \caption{Names used in the example.}
-  \label{fig:idents}
-  \end{figure}
 
   \paragraph{Rule encoding.}
   Another topic is how to represent the body of rules, which
@@ -350,7 +346,7 @@
   in the call to \lstinline$define_inh$ or \lstinline$define_syn$.
   We solve this by additional level of indirection, where the
   wrapped type is parameterized with the final grammar, so that
-  a rule definition looks like the following:
+  a rule definition has the following structure:
   \begin{lstlisting}
   struct my_rule {
     template<typename grammar_final>
@@ -366,7 +362,7 @@
 
   define_syn(n_name, p_name, s_name, my_rule, some_g);
   \end{lstlisting}
-  The names \lstinline$rule$ and \lstinline$evaluate$ are
+  The names \lstinline$rule$ and \lstinline$evaluate$
   cannot be chosen freely, so that when deriving the
   evaluation code from the final grammar
   we can use a statement as follows to call the
@@ -387,19 +383,7 @@
   Note that \lstinline$get$ is a (static) function,
   not a type.
 
-  \paragraph{Example.}
-  Before continuing, we provide an example to demonstrate
-  the embedding using the functions as given so far.
-  The example is about an attribute grammar for binary
-  trees where a synthesized attribute \lstinline$s_count$
-  represents the total number of leaf nodes at a depth greater
-  than 2 given initial depth as inherited attribute \lstinline$i_depth$.
-  The example is separated in two parts: Figure~\ref{fig:example:grammar}
-  contains the description of the grammar, and
-  Figure~\ref{fig:example:rules} gives some of
-  the rules.
-
-  \begin{figure}[tb]
+  \begin{figure}[ht]
   \begin{lstlisting}
   typedef empty_grammar g0;
   typedef decl_nont<n_root, g0>::type g1;
@@ -436,17 +420,7 @@
   \label{fig:example:grammar}
   \end{figure}
 
-  We imposed the following convention to simplify the API: starting
-  nonterminals may only have synthesized attributes, and each production
-  has exactly one terminal, whose values thus have to be available in
-  each node of the tree. Using this convention, inherited attributes
-  of the root can be encoded as terminals of the root node, zero
-  terminals using the type \lstinline$unit$, and multiple terminals
-  using a structured type. In the example, the starting nonterminal
-  \lstinline$n_root$ does indeed not take any inherited attributes,
-  and all productions are of type \lstinline$unit$.
-
-  \begin{figure}[tb]
+  \begin{figure}[ht]
   \begin{lstlisting}
   struct r_zero {
     template<typename g>
@@ -459,7 +433,13 @@
       }
     };
   };
-
+  \end{lstlisting}
+  \caption{Example: trivial rule.}
+  \label{fig:example:rule1}
+  \end{figure}
+ 
+  \begin{figure}[ht]
+  \begin{lstlisting}
   struct r_sum {
     template<typename g>
     struct rule {
@@ -482,9 +462,31 @@
     };
   };
   \end{lstlisting}
-  \caption{Example: two rule bodies.}
-  \label{fig:example:rules}
+  \caption{Example: complex rule.}
+  \label{fig:example:rule2}
   \end{figure}
+
+  \paragraph{Example.}
+  Before continuing, we provide an example to demonstrate
+  the embedding using the functions as given so far.
+  The example is about an attribute grammar for binary
+  trees where a synthesized attribute \lstinline$s_count$
+  represents the total number of leaf nodes at a depth greater
+  than 2 given initial depth as inherited attribute \lstinline$i_depth$.
+  The example is separated in two parts: Figure~\ref{fig:example:grammar}
+  contains the description of the grammar, and
+  Figure~\ref{fig:example:rule1} and Figure~\ref{fig:example:rule2} show some of
+  the rules.
+
+  We imposed the following conventions to simplify the API: starting
+  nonterminals may only have synthesized attributes, and each production
+  has exactly one terminal, whose values thus have to be available in
+  each node of the tree. Using this convention, inherited attributes
+  of the root can be encoded as terminals of the root node, zero
+  terminals using the type \lstinline$unit$, and multiple terminals
+  using a structured type. In the example, the starting nonterminal
+  \lstinline$n_root$ does indeed not take any inherited attributes,
+  and all productions have \lstinline$unit$ as type of the terminal.
 
   \paragraph{Tree construction.}
   Figure~\ref{fig:example:construct} demonstrates
@@ -507,8 +509,8 @@
   We use the \lstinline$tree_type$ when the
   distinction in particular node types is
   irrelevant, which is e.g. the case when
-  we attach a subtree to a node. The
-  template \lstinline$attach$ we use for
+  we attach a subtree to a node. We use the
+  template \lstinline$attach$ for
   this purpose:
   \begin{lstlisting}
   attach<grammar, nont_name, prod_name, child_name
@@ -535,11 +537,11 @@
   result<grammar, nont_name, syn_name>
     ::type::get(root)
   \end{lstlisting}
-  It semantics is that it decorates the tree with
-  those attributes necessary to obtain the
+  The function extracted from the type of the template
+  decorates the tree with those attributes necessary to obtain the
   synthesized attribute \lstinline$syn_name$.
   
-  \begin{figure}[tb]
+  \begin{figure}[ht]
   \begin{lstlisting}
   // allocate the nodes
   node_type<g_final, n_root, p_root>
